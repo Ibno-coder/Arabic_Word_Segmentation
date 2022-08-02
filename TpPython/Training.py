@@ -150,8 +150,6 @@ def invertIndex(index2Term):
     """
     return {term: i for i, term in enumerate(index2Term)}
 
-
-
 def loadLookuplist(path):
     """
     Load lookp list.

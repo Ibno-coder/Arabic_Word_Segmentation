@@ -12,6 +12,7 @@ from tensorflow.keras.optimizers import RMSprop
 from Tokenisation import splitText_withSen, loadLblRewerite
 from Training import loadFromCorpus_4Seg, fitnessIndexTerm, invertIndex, buildWords_4Seg
 from sklearn.metrics import classification_report
+from tensorflow.keras.callbacks import Callback, EarlyStopping, ModelCheckpoint
 
 class __4_lbl:
     index2label = {0: 'E', 1: 'S', 2: 'B', 3: 'M'}
@@ -21,10 +22,12 @@ class __4_lbl:
     np.random.seed(1443)  # for reproducibility
 
     model_ca = 'data/CA/modelWeight_4seg_ca.hdf5'
+    new_model_hdf5 = 'data/CA/_4seg_ca.hdf5'  # TODO       # put a new name for model to not forget the old
+    new_model_json = 'data/CA/_4seg_ca.json'  # TODO       # put a new name for model to not forget the old
     # model_msa = 'data/MSA/modelWeight_5seg_msa.hdf5'
     model_msa = model_ca
 
-dictLabel_2 = ('له', 'ليل')
+    dictLabel_2 = ('له', 'ليل')
     dictLabel_3 = loadLblRewerite('files/RewriterWords/label_5_cl.txt')
     dictLabel_4 = loadLblRewerite('files/RewriterWords/label_4_cl.txt')
 
@@ -49,6 +52,36 @@ dictLabel_2 = ('له', 'ليل')
         else:
             print('error unknown model')
             sys.exit(0)
+
+    def trainModel(self):
+
+        X_train = sequence.pad_sequences(self.x_y_Train[0], maxlen=self.setting_model['max_len'], padding='post')
+        y_train = sequence.pad_sequences(self.x_y_Train[1], maxlen=self.setting_model['max_len'], padding='post')
+        y_train = np.expand_dims(y_train, -1)
+
+        X_dev = sequence.pad_sequences(self.x_y_Dev[0], maxlen=self.setting_model['max_len'], padding='post')
+        y_dev = sequence.pad_sequences(self.x_y_Dev[1], maxlen=self.setting_model['max_len'], padding='post')
+        y_dev = np.expand_dims(y_dev, -1)
+
+        print(strftime("%Y-%m-%d %H:%M:%S", gmtime()) + ' Build model...')
+
+
+        early_stopping = EarlyStopping(patience=10, verbose=1)
+        checkpointer = ModelCheckpoint( self.new_model_hdf5, verbose=1, save_best_only=True)
+
+        model_json = self.model.to_json()
+
+        with open(self.new_model_json, 'w') as json_file:
+            json_file.write(model_json)
+        print("saved json")
+        self.model.fit(x=X_train, y=y_train,
+                  validation_data=(X_dev, y_dev),
+                  verbose=1,
+                  batch_size=64,
+                  epochs=self.setting_model['epochs'],
+                  callbacks=[early_stopping, checkpointer])
+        print(strftime("%Y-%m-%d %H:%M:%S", gmtime()) + ' Save the trained model...')
+
 
     def segment_sentence(self, sen_input):
         sen_input = splitText_withSen(sen_input)  # we need just the default words : the text origin
@@ -210,8 +243,8 @@ if __name__ == "__main__":
         'embed_dim': 200,
         'lstm_dim': 200,
         'learn_rate': 0.01,
-
+        'epochs': 50
     }
     model = __4_lbl(type_mode, ca_setting)
     #print(model.segment_sentence('نسأل الله السلامة والعافية'))
-    model.evaluate()
+    model.trainModel()
